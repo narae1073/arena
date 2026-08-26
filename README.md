@@ -1,3 +1,3 @@
-arena is a fast and efficient memory allocation method
+Testing the difference of speed between arena and malloc
 
 credit: MagicalBat on Youtube
