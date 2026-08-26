@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
+#include "matrix.h"
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -14,6 +16,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef double f64;
 
 typedef i8 b8;
 typedef i32 b32;
@@ -38,9 +41,9 @@ typedef struct
     u64 commit_pos;
 } mem_arena;
 
-mem_arena *arena_create(u64 reserve_size, u64 commmit_size);
+mem_arena* arena_create(u64 reserve_size, u64 commmit_size);
 void arena_destroy(mem_arena *arena);
-void *arena_push(mem_arena *arena, u64 size, b32 non_zero);
+void* arena_push(mem_arena *arena, u64 size, b32 non_zero);
 void arena_pop(mem_arena *arena, u64 size);
 void arena_pop_to(mem_arena *arena, u64 pos);
 void arena_clear(mem_arena *arena);
@@ -57,19 +60,51 @@ b32 plat_mem_commit(void* ptr, u64 size);
 b32 plat_mem_decommit(void* ptr, u64 size);
 b32 plat_mem_release(void* ptr, u64 size);
 
-int main(void)
-{
-    // a permanent arena
-    mem_arena* perm_arena = arena_create(GiB(1), MiB(1));
+matrix mat_create(mem_arena* arena, u64 rows, u64 cols);
 
-    while(1) {
-        arena_push(perm_arena, MiB(64), false);
-        getc(stdin);
-    }
+// int main(void)
+// {
+//     // a permanent arena
+//     mem_arena* perm_arena = arena_create(GiB(1), MiB(1));
 
-    arena_destroy(perm_arena);
+//     matrix a = mat_create(perm_arena, SIZE, SIZE);
+//     matrix b = mat_create(perm_arena, SIZE, SIZE);
+//     matrix c = mat_create(perm_arena, SIZE, SIZE);
+    
+//     struct timespec ts;
+//     timespec_get(&ts, TIME_UTC); 
+//     srand((unsigned int)ts.tv_nsec);
 
-    return 0;
+//     for (u32 i = 0; i < SIZE * SIZE; i++) {
+//         // rand()는 0부터 RAND_MAX사이의 임의의 정수. 
+//         // RAND_MAX는 rand()의 가장 큰 정수값.
+//         a.data[i] = (f32)rand() / (f32)RAND_MAX;
+//     }
+//     for (u32 i = 0; i < SIZE * SIZE; i++) {
+//         // rand()는 0부터 RAND_MAX사이의 임의의 정수. 
+//         // RAND_MAX는 rand()의 가장 큰 정수값.
+//         b.data[i] = (f32)rand() / (f32)RAND_MAX;
+//     }
+
+//     mat_mul(&c, &a, &b);
+
+//     f32 sum = 0.0f;
+//     sum = mat_sum0(&c);
+//     printf("%f\n", sum);
+
+//     arena_destroy(perm_arena);
+
+//     return 0;
+// }
+
+matrix mat_create(mem_arena* arena, u64 rows, u64 cols) {
+    matrix m;
+    m.rows = rows;
+    m.cols = cols;
+
+    m.data = PUSH_ARRAY_NZ(arena, f32, rows * cols);
+
+    return m;
 }
 
 mem_arena *arena_create(u64 reserve_size, u64 commit_size)
@@ -96,10 +131,13 @@ mem_arena *arena_create(u64 reserve_size, u64 commit_size)
 
 void arena_destroy(mem_arena *arena)
 {
-    free(arena);
+    if (arena) {
+        u64 reserve_size = arena->reserve_size;
+        plat_mem_release(arena, reserve_size);
+    }
 }
 
-void *arena_push(mem_arena *arena, u64 size, b32 non_zero)
+void* arena_push(mem_arena *arena, u64 size, b32 non_zero)
 {
     u64 pos_aligned = ALIGN_UP_POW2(arena->pos, ARENA_ALIGN);
     u64 new_pos = pos_aligned + size;
